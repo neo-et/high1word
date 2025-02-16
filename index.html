@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>단어 퀴즈 (타동사/자동사 구분)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #f2f2f2;
+      margin: 0; 
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #quiz-container {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      max-width: 600px;
+      width: 90%;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .question-area {
+      margin-bottom: 20px;
+    }
+    .question-area p {
+      font-size: 18px;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .choice-group {
+      margin-bottom: 20px;
+    }
+    .choice-group h2 {
+      margin: 10px 0;
+      font-size: 16px;
+      text-align: center;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    li {
+      margin-bottom: 10px;
+    }
+
+    /* 품사 선택 버튼을 한 줄에, 작게 표시 */
+    #pos-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    #pos-choices .choice-btn {
+      width: auto;
+      padding: 5px 8px;
+      font-size: 14px;
+    }
+
+    /* 뜻 선택 버튼은 전체 너비 */
+    #definition-choices .choice-btn {
+      width: 100%;
+      padding: 10px;
+      font-size: 15px;
+    }
+
+    button.choice-btn {
+      cursor: pointer;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #fff;
+      text-align: left;
+      transition: background-color 0.2s;
+    }
+    button.choice-btn:hover {
+      background-color: #eef;
+    }
+
+    /* 확인, 다음, 다시 풀기 버튼 */
+    #submit-btn, #next-btn, #restart-btn {
+      display: inline-block;
+      padding: 10px 20px;
+      margin-top: 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background-color: #28a745;
+      color: #fff;
+      font-size: 16px;
+    }
+    #submit-btn:hover, #next-btn:hover, #restart-btn:hover {
+      background-color: #218838;
+    }
+    
+    .feedback {
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .hidden {
+      display: none;
+    }
+    .center {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div id="quiz-container">
+  <h1>단어 퀴즈</h1>
+
+  <!-- 시작 화면 -->
+  <div id="quiz-start" class="center">
+    <p>퀴즈를 시작하시려면 아래 버튼을 누르세요.</p>
+    <button id="start-btn">시작하기</button>
+  </div>
+
+  <!-- 퀴즈 진행 화면 -->
+  <div id="quiz-game" class="hidden">
+    <div class="question-area">
+      <p id="question-text"></p>
+
+      <!-- 품사 선택 영역 (9가지: 명, 동(타), 동(자), 대, 형, 부, 접, 전, 감) -->
+      <div class="choice-group">
+        <h2>품사를 고르세요</h2>
+        <ul id="pos-choices"></ul>
+      </div>
+
+      <!-- 뜻 선택 영역 (정답 + 오답 3개) -->
+      <div class="choice-group">
+        <h2>뜻을 고르세요</h2>
+        <ul id="definition-choices"></ul>
+      </div>
+
+      <div class="center">
+        <!-- "제출" → "확인" -->
+        <button id="submit-btn">확인</button>
+      </div>
+      
+      <div class="feedback" id="feedback-area"></div>
+
+      <div class="center">
+        <button id="next-btn" class="hidden">다음 문제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 퀴즈 종료 화면 -->
+  <div id="quiz-end" class="hidden center">
+    <h2>퀴즈 완료</h2>
+    <p id="final-score"></p>
+    <button id="restart-btn">다시 풀기</button>
+  </div>
+</div>
+
+<script>
+  /********************************************************
+   * 문제 데이터 (예시)
+   * word(영단어), definition(뜻), partOfSpeech(영어 품사)
+   * verb-trans = 동(타), verb-intrans = 동(자)
+   ********************************************************/
+  const quizData = [
+    {
+      word: "medium",
+      definition: "매체 (정보·통신 등의 전달 수단)",
+      partOfSpeech: "noun"
+    },
+    {
+      word: "absorb",
+      definition: "(지식·정보 등을) 흡수하다",
+      partOfSpeech: "verb-trans" // 타동사
+    },
+    {
+      word: "arrive",
+      definition: "도착하다",
+      partOfSpeech: "verb-intrans" // 자동사
+    },
+    {
+      word: "invention",
+      definition: "발명품",
+      partOfSpeech: "noun"
+    },
+    {
+      word: "appearance",
+      definition: "외모, 겉모습",
+      partOfSpeech: "noun"
+    },
+    {
+      word: "run",
+      definition: "(달려) 가다, 뛰다",
+      partOfSpeech: "verb-intrans" // 자동사 예시
+    },
+    {
+      word: "raise",
+      definition: "올리다, 기르다",
+      partOfSpeech: "verb-trans" // 타동사 예시
+    }
+  ];
+
+  /********************************************************
+   * 영어 → 한국어 품사 맵핑
+   * - noun → 명
+   * - verb-trans → 동(타)
+   * - verb-intrans → 동(자)
+   * - pronoun → 대
+   * - adjective → 형
+   * - adverb → 부
+   * - conjunction → 접
+   * - preposition → 전
+   * - interjection → 감
+   * - 그 외 → "???"
+   ********************************************************/
+  function getKoreanPOS(engPOS) {
+    switch (engPOS) {
+      case "noun":         return "명";
+      case "verb-trans":   return "동(타)";
+      case "verb-intrans": return "동(자)";
+      case "pronoun":      return "대";
+      case "adjective":    return "형";
+      case "adverb":       return "부";
+      case "conjunction":  return "접";
+      case "preposition":  return "전";
+      case "interjection": return "감";
+      default:             return "???"; 
+    }
+  }
+
+  // 9가지 품사: 명, 동(타), 동(자), 대, 형, 부, 접, 전, 감
+  const posOptionKorean = ["명","동(타)","동(자)","대","형","부","접","전","감"];
+
+  // ======= 전역 변수 =======
+  let shuffledQuiz = []; // 문제 순서 섞어서 저장
+  let currentIndex = 0;  // 현재 문제 인덱스
+  let score = 0;         // 정답 개수
+
+  // ======= DOM 요소 =======
+  const quizStart = document.getElementById("quiz-start");
+  const quizGame = document.getElementById("quiz-game");
+  const quizEnd = document.getElementById("quiz-end");
+
+  const startBtn = document.getElementById("start-btn");
+  const submitBtn = document.getElementById("submit-btn");
+  const nextBtn = document.getElementById("next-btn");
+  const restartBtn = document.getElementById("restart-btn");
+
+  const questionText = document.getElementById("question-text");
+  const definitionChoicesEl = document.getElementById("definition-choices");
+  const posChoicesEl = document.getElementById("pos-choices");
+  const feedbackArea = document.getElementById("feedback-area");
+  const finalScore = document.getElementById("final-score");
+
+  // ======= 이벤트 등록 =======
+  startBtn.addEventListener("click", startQuiz);
+  submitBtn.addEventListener("click", submitAnswer);
+  nextBtn.addEventListener("click", nextQuestion);
+  restartBtn.addEventListener("click", restartQuiz);
+
+  // ======= 퀴즈 시작 =======
+  function startQuiz() {
+    quizStart.classList.add("hidden");
+    quizGame.classList.remove("hidden");
+
+    // 문제 섞기
+    shuffledQuiz = shuffleArray([...quizData]);
+    currentIndex = 0;
+    score = 0;
+
+    loadQuestion();
+  }
+
+  // ======= 문제 로드 =======
+  function loadQuestion() {
+    feedbackArea.textContent = "";
+    nextBtn.classList.add("hidden");
+
+    const current = shuffledQuiz[currentIndex];
+    questionText.textContent = `단어: "${current.word}" — (품사, 뜻)를 고르세요.`;
+
+    // 품사 (9개 전부)
+    createPosChoices(current);
+
+    // 뜻 (정답 + 무작위 3개)
+    createDefinitionChoices(current);
+  }
+
+  // ======= 품사 선택지 생성 =======
+  function createPosChoices(problem) {
+    posChoicesEl.innerHTML = "";
+
+    // 9개 품사 버튼 전부 생성
+    posOptionKorean.forEach(korPos => {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.className = "choice-btn";
+      btn.textContent = korPos;
+      btn.addEventListener("click", () => {
+        handleChoiceSelect(posChoicesEl, btn);
+      });
+      li.appendChild(btn);
+      posChoicesEl.appendChild(li);
+    });
+  }
+
+  // ======= 뜻 선택지 생성 =======
+  function createDefinitionChoices(problem) {
+    definitionChoicesEl.innerHTML = "";
+
+    const correctDef = problem.definition;
+    // 오답 후보 (모든 definition 중에서 정답 제외)
+    let wrongDefs = quizData
+      .map(item => item.definition)
+      .filter(def => def !== correctDef);
+
+    // 무작위 3개
+    wrongDefs = shuffleArray(wrongDefs).slice(0, 3);
+
+    let allDefs = [correctDef, ...wrongDefs];
+    allDefs = shuffleArray(allDefs);
+
+    allDefs.forEach(def => {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.className = "choice-btn";
+      btn.textContent = def;
+      btn.addEventListener("click", () => {
+        handleChoiceSelect(definitionChoicesEl, btn);
+      });
+      li.appendChild(btn);
+      definitionChoicesEl.appendChild(li);
+    });
+  }
+
+  // ======= 한 그룹에서 하나만 클릭되도록 처리 =======
+  function handleChoiceSelect(parentUl, clickedBtn) {
+    const buttons = parentUl.querySelectorAll("button.choice-btn");
+    buttons.forEach(btn => {
+      btn.style.backgroundColor = "#fff";
+    });
+    clickedBtn.style.backgroundColor = "#cceeff";
+  }
+
+  // ======= 확인 버튼 클릭 시 =======
+  function submitAnswer() {
+    const current = shuffledQuiz[currentIndex];
+
+    // 1) 선택한 품사
+    const chosenPos = getSelectedText(posChoicesEl);
+    // 2) 선택한 뜻
+    const chosenDef = getSelectedText(definitionChoicesEl);
+
+    if (!chosenPos || !chosenDef) {
+      alert("품사와 뜻을 각각 하나씩 선택하세요!");
+      return;
+    }
+
+    // 정답 판별
+    const isPosCorrect = (chosenPos === getKoreanPOS(current.partOfSpeech));
+    const isDefCorrect = (chosenDef === current.definition);
+
+    if (isPosCorrect && isDefCorrect) {
+      feedbackArea.textContent = "정답입니다! (품사·뜻 모두 일치)";
+      feedbackArea.style.color = "green";
+      score++;
+    } else {
+      feedbackArea.textContent = 
+        `오답!
+         정답 품사: [${getKoreanPOS(current.partOfSpeech)}],
+         정답 뜻: [${current.definition}]`;
+      feedbackArea.style.color = "red";
+    }
+
+    nextBtn.classList.remove("hidden");
+  }
+
+  // ======= 선택된 버튼 텍스트 가져오기 =======
+  function getSelectedText(parentUl) {
+    const selectedBtn = Array.from(parentUl.querySelectorAll("button.choice-btn"))
+      .find(btn => btn.style.backgroundColor === "rgb(204, 238, 255)");
+    return selectedBtn ? selectedBtn.textContent : null;
+  }
+
+  // ======= 다음 문제 =======
+  function nextQuestion() {
+    currentIndex++;
+    if (currentIndex < shuffledQuiz.length) {
+      loadQuestion();
+    } else {
+      endQuiz();
+    }
+  }
+
+  // ======= 퀴즈 종료 =======
+  function endQuiz() {
+    quizGame.classList.add("hidden");
+    quizEnd.classList.remove("hidden");
+    finalScore.textContent = `당신의 점수는 ${score} / ${shuffledQuiz.length} 입니다.`;
+  }
+
+  // ======= 다시 풀기 =======
+  function restartQuiz() {
+    quizEnd.classList.add("hidden");
+    quizStart.classList.remove("hidden");
+  }
+
+  // ======= 배열 무작위 셔플 함수 =======
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+</script>
+</body>
+</html>
